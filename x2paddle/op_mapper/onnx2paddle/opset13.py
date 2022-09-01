@@ -47,6 +47,6 @@ class OpSet13(OpSet12):
         else:
             self.paddle_graph.add_layer(
                 'paddle.unsqueeze',
-                inputs={"x": val_x.name,
-                        "axis": axes.name},
+                inputs={"x": val_x.name},
+                axis=axes.weight,
                 outputs=[node.name])

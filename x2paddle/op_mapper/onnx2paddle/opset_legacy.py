@@ -2189,7 +2189,7 @@ class OpSet():
 
         kernel_shape = node.get_attr('kernel_shape')
         convnd = len(kernel_shape)
-        assert 2 <= convnd <= 3, 'only Conv2D and Conv3D is supported'
+        # assert 2 <= convnd <= 3, 'only Conv2D and Conv3D is supported'
         num_out_channels = val_w.out_shapes[0][0]
         num_in_channels = val_w.out_shapes[0][1]
         paddle_op = 'paddle.nn.Conv{}D'.format(convnd)
@@ -2216,6 +2216,19 @@ class OpSet():
             paddings = pad_h + pad_w
 
         layer_inputs = {'x': val_x if isinstance(val_x, str) else val_x.name}
+
+        if convnd == 1:
+            for p in paddings:
+                if p > kernel_shape[0]:
+                    self.paddle_graph.add_layer('paddle.nn.Pad1D',
+                                                inputs=layer_inputs,
+                                                outputs=[name_generator("pad_1d",self.nn_name2id),
+                                                layer_inputs['x']],
+                                                padding=paddings)
+                    paddings = np.zeros(np.array(paddings).shape)
+                    paddings = paddings.flatten().tolist()
+                    break
+
         if val_w.name not in self.weights.keys():
             layer_attrs = {
                 "stride": strides,
@@ -2265,7 +2278,7 @@ class OpSet():
                 rename_mapper=self.rename_mapper)
         else:
             layer_attrs["bias_attr"] = False
-        if reduce(lambda x, y: x * y,
+        if len(input_shape)>0 and reduce(lambda x, y: x * y,
                   input_shape) in [1, -1] and 1 not in input_shape:
             input_shape[1] = num_in_channels * num_groups
             input_shape[0] = 0
@@ -2602,10 +2615,7 @@ class OpSet():
             self.paddle_graph.add_layer(
                 "paddle.topk",
                 inputs={"x": val_x.name},
-                outputs=[
-                    "{}_p{}".format(node.layer_name, 0),
-                    "{}_p{}".format(node.layer_name, 1)
-                ],
+                outputs=[node.layer.output[0], node.layer.output[1]],
                 **layer_attrs)
         else:
             if val_k.dtype != "int32":
@@ -2618,10 +2628,7 @@ class OpSet():
                 "paddle.topk",
                 inputs={"x": val_x.name,
                         "k": val_k.name},
-                outputs=[
-                    "{}_p{}".format(node.layer_name, 0),
-                    "{}_p{}".format(node.layer_name, 1)
-                ],
+                outputs=[node.layer.output[0], node.layer.output[1]],
                 **layer_attrs)
 
     @print_mapping_info
